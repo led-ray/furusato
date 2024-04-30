@@ -2,6 +2,7 @@
 ![image](https://github.com/led-ray/furusato/assets/151374279/31655a9b-9622-49a0-94d2-3cc6feec1d06)
 
 # 画面遷移図
+![image](https://github.com/led-ray/furusato/assets/151374279/bf3bbd53-ca1d-4519-bd41-4c4890c70be7)
 
 # ワイヤーフレーム
 
