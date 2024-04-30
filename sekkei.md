@@ -1,6 +1,5 @@
 # 業務フロー
-![image](https://github.com/led-ray/furusato/assets/151374279/4608d154-9a59-49c1-acc1-a6121a3589e9)
-
+![image](https://github.com/led-ray/furusato/assets/151374279/31655a9b-9622-49a0-94d2-3cc6feec1d06)
 
 # 画面遷移図
 
