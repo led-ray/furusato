@@ -5,6 +5,7 @@
 ![image](https://github.com/led-ray/furusato/assets/151374279/bf3bbd53-ca1d-4519-bd41-4c4890c70be7)
 
 # ワイヤーフレーム
+![Uploading image.png…]()
 
 # テーブル定義
 自治体の情報データはファイル（.shpファイル）に保存し、データベースではファイルの名前を管理することを想定する。React-Leafletで.shpファイルを読み込んで表示する。
