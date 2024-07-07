@@ -9,8 +9,8 @@ export default function Layout({ children }) {
   return (
     <html lang="ja">
         <head>
-        <meta charset="utf-8" />
-        <title>ふるさとknow they（仮名）</title>
+        <meta charSet="utf-8" />
+        <title>ふるさとknow they</title>
         <link
           href="//code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css"
           rel="stylesheet"

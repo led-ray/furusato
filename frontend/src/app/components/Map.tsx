@@ -1,40 +1,151 @@
-"use client";
-
-import React, { ReactElement, useEffect, useState } from 'react';
+import React, { useState, useEffect, ReactElement } from 'react';
+import axios from 'axios';
+import { GeoJSON, MapContainer, ScaleControl, TileLayer, ZoomControl } from 'react-leaflet';
+import { Col, Container, Row, Spinner } from 'react-bootstrap';
+import L, { LatLng, Layer } from 'leaflet';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
-import L, { LatLng, Layer } from 'leaflet';
-import { GeoJSON, MapContainer, ScaleControl, TileLayer, ZoomControl } from 'react-leaflet';
-import { Col, Container, Row, Card, Spinner } from 'react-bootstrap';
-import axios from 'axios';
 import ReactDOMServer from 'react-dom/server';
 import { Feature, GeoJsonObject, GeometryObject, GeoJsonProperties } from 'geojson';
+import { openDB } from 'idb';
 
-const Map: React.FC = () => {
-  const [isWaiting, setIsWaiting] = useState(true);
+const DB_NAME = 'GeoJSONCache';
+const STORE_NAME = 'GeoJSONStore';
+
+const initDB = async () => {
+  return openDB(DB_NAME, 1, {
+    upgrade(db) {
+      db.createObjectStore(STORE_NAME);
+    },
+  });
+};
+
+const useGeoJSONData = (url) => {
+  const [area, setArea] = useState<GeoJsonObject | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+
   useEffect(() => {
-    setTimeout(() => {
-      setIsWaiting(false);
-    }, 400);
-  }, []);
-  return (
-    <>
-      {isWaiting ? (
-        <div className="loading">
-          <Spinner animation="border" role="status" variant="light" className="spinner" />
-        </div>
-      ) : (
-        <Top />
-      )}
-    </>
-  );
+    const handleError = (error: any) => {
+      setIsLoading(false);
+      console.error(error);
+    };
+
+    const getData = async () => {
+      setIsLoading(true);
+
+      try {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+
+        // IndexedDBからデータを取得
+        const cachedData = await store.get(url);
+        if (cachedData) {
+          setArea(cachedData);
+          setIsLoading(false);
+          return;
+        }
+
+        // データを取得してIndexedDBに保存
+        const result = await axios.get(url);
+        setArea(result.data);
+        const txWrite = db.transaction(STORE_NAME, 'readwrite');
+        const storeWrite = txWrite.objectStore(STORE_NAME);
+        await storeWrite.put(result.data, url);
+      } catch (error) {
+        handleError(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    getData();
+  }, [url]);
+
+  return [area, isLoading];
 };
 
 const Top: React.FC = () => {
   const initialPosition = new LatLng(35.7, 139.5);
   const [polygonVisible, setPolygonVisible] = useState(false);
-  const [polygonData, isPolygonLoading] = useGeoJSONData("/test.geojson", polygonVisible);
+  const [products, setProducts] = useState([]);
+  const [displayProperty, setDisplayProperty] = useState("人口");
+  const [geojsonKey, setGeojsonKey] = useState(0);
+
+  // GeoJSONデータの取得
+  const [geojsonData, isPolygonLoading] = useGeoJSONData('/gisdata.geojson');
+
+  // 返礼品情報を画面に表示する関数
+  const displayProducts = (products) => {
+    setProducts(products);
+  };
+
+  const fetchRakutenProducts = async (locationName: string) => {
+    const endpoint = 'https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601';
+    const params = {
+      applicationId: '00000000',
+      keyword: locationName + ' ふるさと納税',
+      hits: 20,
+    };
+
+    try {
+      const response = await axios.get(endpoint, { params });
+      const products = response.data.Items;
+      console.log('Fetched products:', products);
+      displayProducts(products);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
+
+  // 市町村名を引数として受け取る関数
+  const handleFeatureClick = (locationName: string) => {
+    console.log('Fetching products for:', locationName);
+    fetchRakutenProducts(locationName);
+  };
+
+  // 地物毎の処理
+  const onEachPolygonFeature: OnEachFeature = (feature, layer) => {
+    const fp = feature.properties;
+    const location_name = (fp && fp.市町村) ? decodeURIComponent(fp.市町村) : '-';
+    const display_value = (fp && fp[displayProperty]) ? decodeURIComponent(fp[displayProperty]) : '-';
+
+    // クリックイベントのハンドラを追加
+    layer.on({
+      click: () => {
+        console.log('Clicked feature:', feature);
+        console.log('Location name:', location_name);
+        handleFeatureClick(location_name);
+
+        // ポップアップの内容を変更する
+        const element: ReactElement = (
+          <Container className="popup-container">
+            <Row className="row-style-narrow">
+              <Col className="popup-title">{location_name}</Col>
+            </Row>
+            <Row className="row-style-narrow">
+              <Col className="col-title">{displayProperty}</Col>
+              <Col xs={6}>{display_value}</Col>
+            </Row>
+          </Container>
+        );
+        layer.bindPopup(`${ReactDOMServer.renderToString(element)}`, {
+        }).openPopup();
+      }
+    });
+  };
+
+  let quantiles = [];
+  if (geojsonData) {
+    quantiles = calculateQuantiles(geojsonData, displayProperty);
+  }
+
+  const handleButtonClick = (property: string) => {
+    setDisplayProperty(property);
+    setPolygonVisible(true);
+    setGeojsonKey(prevKey => prevKey + 1);
+  };
 
   return (
     <>
@@ -44,21 +155,9 @@ const Top: React.FC = () => {
             <Spinner animation="border" role="status" variant="light" className="spinner" />
           </div>
         )}
-        <div>
-          <Card>
-            <Card.Header>
-              <span>ふるさとknow they（仮名）</span>
-            </Card.Header>
-            <ul className='category-list'>
-              <li onClick={() => { setPolygonVisible(!polygonVisible) }} >
-                人口
-              </li>
-            </ul>
-          </Card>
-        </div>
 
         <MapContainer
-          zoom={13}
+          zoom={10}
           zoomControl={false}
           center={initialPosition}
           tap={false}
@@ -71,14 +170,47 @@ const Top: React.FC = () => {
             attribution='© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {polygonVisible && polygonData && (
+
+          {polygonVisible && geojsonData && (
             <GeoJSON
-              data={polygonData}
+              key={geojsonKey}
+              data={geojsonData}
               onEachFeature={onEachPolygonFeature}
-              style={(feature) => confirmedStyle(feature?.properties)}
+              style={(feature) => confirmedStyle(feature?.properties, quantiles, displayProperty)}
             />
           )}
+
+          <div className="category-container">
+            <ul className='category-list'>
+              <li onClick={() => handleButtonClick("人口")}>
+                人口
+              </li>
+              <li onClick={() => handleButtonClick("学校")}>
+                学校数
+              </li>
+              <li onClick={() => handleButtonClick("福祉施設")}>
+                福祉施設
+              </li>
+              <li onClick={() => handleButtonClick("地震予測")}>
+                地震予測
+              </li>
+            </ul>
+          </div>
         </MapContainer>
+
+        <div className="product-container">
+          <h2>返礼品一覧</h2>
+          <ul className="product-list">
+            {products.map((product, index) => (
+              <li key={index} className="product-item">
+                <a href={product.Item.itemUrl} target="_blank" rel="noopener noreferrer">
+                  <img src={product.Item.mediumImageUrls[0].imageUrl} alt={product.Item.itemName} />
+                  <p>{product.Item.itemName}</p>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </>
   );
@@ -86,70 +218,49 @@ const Top: React.FC = () => {
 
 type OnEachFeature = (feature: Feature<GeometryObject, GeoJsonProperties>, layer: Layer) => void;
 type Style = {
-  fillcolor: string | undefined,
+  fillColor: string | undefined,
   color: string | undefined,
   weight: number | undefined
 }
 
-// 地物毎の処理
-const onEachPolygonFeature: OnEachFeature = (feature, layer) => {
-  const fp = feature.properties;
-  const location_name = (fp && fp.N03_007) ? decodeURIComponent(fp.N03_007) : '-';
-  const element: ReactElement = (
-    <Container className="container">
-      <Row className="row-style-narrow">
-        <Col className="col-title">人口</Col>
-        <Col xs={6}>{location_name}</Col>
-      </Row>
-    </Container>
-  );
-  layer.bindPopup(`${ReactDOMServer.renderToString(element)}`, {
-    maxHeight: 450,
-  });
-};
-
 interface FeatureProperties {
-  N03_007: number;
+  人口: number;
+  学校数: number;
+  福祉施設: number;
+  地震予測: number;
 }
 
-function confirmedStyle(fp: GeoJsonProperties | null): Style {
-  const confirmed = fp.N03_007;
-  if (confirmed < 12000) {
-    return { fillcolor: "#ffb8b8" ,color: "#000000" ,weight: 1.0 };
-  } else if (confirmed < 14000) {
-    return { fillcolor: "#ff9999" ,color: "#000000" ,weight: 1.0 };
-  } else if (confirmed < 15000) {
-    return { fillcolor: "#ff3100" ,color: "#000000" ,weight: 1.0 };
+function getQuantileStyle(value, quantiles) {
+  if (value <= quantiles[0]) {
+    return { fillColor: "#000000", color: "#000000", weight: 1.0 };
+  } else if (value <= quantiles[1]) {
+    return { fillColor: "#ffbfbf", color: "#000000", weight: 1.0 };
+  } else if (value <= quantiles[2]) {
+    return { fillColor: "#ff8080", color: "#000000", weight: 1.0 };
+  } else if (value <= quantiles[3]) {
+    return { fillColor: "#ff4040", color: "#000000", weight: 1.0 };
   } else {
-    return { fillcolor: "#000000" ,color: "#000000" ,weight: 1.0 };
+    return { fillColor: "#ff0000", color: "#000000", weight: 1.0 };
   }
 }
 
-type UseGeoJSONData = (url: string, showToggle: boolean) => [GeoJsonObject | undefined, boolean];
-const useGeoJSONData: UseGeoJSONData = (url, showToggle) => {
-  const [area, setArea] = useState<GeoJsonObject | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    const handleError = (error: any) => {
-      setIsLoading(false);
-      console.error(error);
-    };
-
-    const getData = async () => {
-      setIsLoading(true);
-      await axios.get(url)
-        .then((result) => setArea(result.data))
-        .catch((error) => handleError(error));
-      setIsLoading(false);
-    };
-
-    if (showToggle && area == null) {
-      getData();
-    }
-  }, [showToggle]);
-
-  return [area, isLoading];
+function confirmedStyle(fp: GeoJsonProperties | null, quantiles: number[], displayProperty: string): Style {
+  const value = fp ? fp[displayProperty] : 0;
+  return getQuantileStyle(value, quantiles);
 }
 
-export default Map;
+function calculateQuantiles(data: GeoJsonObject, property: string) {
+  const values = data.features.map((feature) => feature.properties[property]);
+  values.sort((a, b) => a - b);
+  const quantiles = [
+    values[Math.floor(values.length * 0.2)],
+    values[Math.floor(values.length * 0.4)],
+    values[Math.floor(values.length * 0.6)],
+    values[Math.floor(values.length * 0.8)]
+  ];
+  return quantiles;
+}
+
+type UseGeoJSONData = (url: string) => [GeoJsonObject | undefined, boolean];
+
+export default Top;
