@@ -1,6 +1,7 @@
 FROM php:8.2-apache
 
 COPY --from=composer:2.4 /usr/bin/composer /usr/bin/composer
+
 COPY ./backend/000-default.conf /etc/apache2/sites-available/000-default.conf
 
 RUN apt-get update && apt-get install -y zip unzip && \
