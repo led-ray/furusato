@@ -1,0 +1,7 @@
+本アプリでは下記のオープンデータを元に独自に加工・編集したデータを使用しています。
+
+・国土数値情報ダウンロードサイト/国土交通省 https://nlftp.mlit.go.jp/ksj/
+500mメッシュ別将来推計人口（H30国政局推計）、学校、福祉施設
+
+・J-SHISダウンロードページ/防災科学技術研究所 https://www.j-shis.bosai.go.jp/map/JSHIS2/download.html?lang=jp
+確率論的地震動予測地図 地図データ
