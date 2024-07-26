@@ -9,6 +9,7 @@ import './App.css';
 import ReactDOMServer from 'react-dom/server';
 import { Feature, GeoJsonObject, GeometryObject, GeoJsonProperties } from 'geojson';
 import { openDB } from 'idb';
+import { feature } from 'topojson-client';
 
 const DB_NAME = 'GeoJSONCache';
 const STORE_NAME = 'GeoJSONStore';
@@ -21,7 +22,7 @@ const initDB = async () => {
   });
 };
 
-const useGeoJSONData = (url) => {
+const useTopoJSONData = (url) => {
   const [area, setArea] = useState<GeoJsonObject | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -49,10 +50,12 @@ const useGeoJSONData = (url) => {
 
         // データを取得してIndexedDBに保存
         const result = await axios.get(url);
-        setArea(result.data);
+        const topoJSONData = result.data;
+        const geoJSONData = feature(topoJSONData, topoJSONData.objects[Object.keys(topoJSONData.objects)[0]]);
+        setArea(geoJSONData);
         const txWrite = db.transaction(STORE_NAME, 'readwrite');
         const storeWrite = txWrite.objectStore(STORE_NAME);
-        await storeWrite.put(result.data, url);
+        await storeWrite.put(geoJSONData, url);
       } catch (error) {
         handleError(error);
       } finally {
@@ -73,8 +76,8 @@ const Top: React.FC = () => {
   const [displayProperty, setDisplayProperty] = useState("人口");
   const [geojsonKey, setGeojsonKey] = useState(0);
 
-  // GeoJSONデータの取得
-  const [geojsonData, isPolygonLoading] = useGeoJSONData('/gisdata.geojson');
+  // TopoJSONデータの取得
+  const [geojsonData, isPolygonLoading] = useTopoJSONData('/gisdata.topojson');
 
   // 返礼品情報を画面に表示する関数
   const displayProducts = (products) => {
@@ -82,11 +85,9 @@ const Top: React.FC = () => {
   };
 
   const fetchRakutenProducts = async (locationName: string) => {
-    const endpoint = 'https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601';
+    const endpoint = 'http://localhost:8080/api/rakuten/search';
     const params = {
-      applicationId: '00000000',
-      keyword: locationName + ' ふるさと納税',
-      hits: 20,
+      keyword: locationName + ' ふるさと納税'
     };
 
     try {
@@ -118,7 +119,6 @@ const Top: React.FC = () => {
         console.log('Location name:', location_name);
         handleFeatureClick(location_name);
 
-        // ポップアップの内容を変更する
         const element: ReactElement = (
           <Container className="popup-container">
             <Row className="row-style-narrow">
@@ -189,10 +189,10 @@ const Top: React.FC = () => {
                 学校数
               </li>
               <li onClick={() => handleButtonClick("福祉施設")}>
-                福祉施設
+                福祉施設数
               </li>
               <li onClick={() => handleButtonClick("地震予測")}>
-                地震予測
+                地震予測(30年以内,震度6以上の確率%)
               </li>
             </ul>
           </div>
