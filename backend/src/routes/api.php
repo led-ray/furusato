@@ -15,8 +15,4 @@ use App\Http\Controllers\RakutenController;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
-
 Route::get('/rakuten/search', [RakutenController::class, 'search']);

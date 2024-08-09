@@ -21,7 +21,7 @@ services:
     volumes:
       - mysql-volume:/var/lib/mysql
     environment:
-      MYSQL_DATABASE: realworld
+      MYSQL_DATABASE: furusato
       MYSQL_ROOT_PASSWORD: password
     networks:
       - app-network
