@@ -112,7 +112,7 @@ const Top: React.FC = () => {
     const location_name = (fp && fp.市町村) ? decodeURIComponent(fp.市町村) : '-';
     const display_value = (fp && fp[displayProperty]) ? decodeURIComponent(fp[displayProperty]) : '-';
 
-    // クリックイベントのハンドラを追加
+    // クリックイベントのハンドラ
     layer.on({
       click: () => {
         console.log('Clicked feature:', feature);
